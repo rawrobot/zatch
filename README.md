@@ -1,8 +1,8 @@
-# ztch
+# zatch
 
-**Lineage:** `dtach` → `ztch` (C) → **`ztch`** (Rust)
+**Lineage:** `dtach` → `atch` (C) → **`zatch`** (Rust)
 
-**ztch** is a lightweight terminal session manager for Linux — a Rust rewrite of [atch](https://github.com/mobydeck/atch), itself a modern take on [dtach](https://github.com/crigler/dtach). It lets you run a command in a background session, detach from it, and reattach later from any terminal.
+**zatch** is a lightweight terminal session manager for Linux — a Rust rewrite of [atch](https://github.com/mobydeck/atch), itself a modern take on [dtach](https://github.com/crigler/dtach). It lets you run a command in a background session, detach from it, and reattach later from any terminal.
 
 ```
 $ ztch new work
