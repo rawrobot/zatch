@@ -1,0 +1,16 @@
+[package]
+name = "ztch"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = "0.2"
+clap = { version = "4", features = ["derive"] }
+
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

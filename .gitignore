@@ -1,0 +1,48 @@
+# Rust build artifacts
+/target/
+
+# Cargo lock
+# Keep Cargo.lock for applications.
+# Ignore it for libraries.
+# Uncomment the next line only if this is a library.
+# Cargo.lock
+
+# Backup files
+**/*.rs.bk
+
+# Editor settings
+.vscode/
+.idea/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+
+# Generated documentation
+/doc/
+
+# Temporary files
+tmp/
+temp/
+
+# Local scripts/output
+*.out
