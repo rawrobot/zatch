@@ -45,6 +45,22 @@ pub fn connect_unix(path: &str) -> Result<UnixStream, i32> {
 /// let fd = listener.as_raw_fd();  // for use with select(2)
 /// ```
 pub fn listen_unix(path: &str) -> Result<UnixListener, i32> {
+    // If a socket file exists at this path, check whether it is stale
+    // (listener crashed without cleanup) by attempting a connection.
+    // A successful connect means the session is alive — bail with EADDRINUSE.
+    // ECONNREFUSED means the socket file is orphaned: remove it so bind
+    // can create a fresh one.
+    match UnixStream::connect(path) {
+        Ok(stream) => {
+            // Socket is active — drop our probe connection and report in-use.
+            drop(stream);
+            return Err(libc::EADDRINUSE);
+        }
+        Err(e) if e.raw_os_error() == Some(libc::ECONNREFUSED) => {
+            let _ = std::fs::remove_file(path);
+        }
+        _ => {}
+    }
     let listener = UnixListener::bind(path).map_err(|e| e.raw_os_error().unwrap_or(libc::EIO))?;
     listener
         .set_nonblocking(true)

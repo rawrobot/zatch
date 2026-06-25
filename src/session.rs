@@ -6,7 +6,7 @@
 //! path.  The free function [`connect_socket`] is public because it is used
 //! by the session-scanning logic in `rm` and `list`.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
@@ -882,7 +882,7 @@ impl Session {
                 if !is_socket(meta.st_mode() as u64) {
                     continue;
                 }
-                let age = fmt_age(now.saturating_sub(meta_secs(&meta, now)));
+                let age = fmt_age(meta_secs(&meta, now));
                 match connect_socket(path.to_str().unwrap_or("")) {
                     Ok(_sock) => {
                         let attached = (meta.st_mode() & libc::S_IXUSR) != 0;
@@ -922,7 +922,7 @@ impl Session {
                 let age = path
                     .metadata()
                     .ok()
-                    .map(|m| fmt_age(now.saturating_sub(meta_secs(&m, now))))
+                    .map(|m| fmt_age(meta_secs(&m, now)))
                     .unwrap_or_else(|| "unknown".to_string());
                 println!("{:<24} since {} ago [exited]", stem, age);
                 count += 1;
@@ -967,11 +967,46 @@ impl Session {
         })
     }
 
+    /// If the session socket is live and we have a TTY, prompt the user to
+    /// attach.  Returns `Some(exit_code)` when the prompt was displayed
+    /// (regardless of the user's answer).  Returns `None` when the session
+    /// is not running or we are non-interactive — callers should proceed
+    /// with session creation as usual.
+    fn prompt_attach_if_running(&mut self) -> Option<i32> {
+        if self.dont_have_tty || self.quiet {
+            return None;
+        }
+        let ok = match connect_socket(&self.sockname) {
+            Ok(_) => true,
+            Err(_) => return None,
+        };
+        if !ok {
+            return None;
+        }
+        let name = session_shortname(&self.sockname);
+        let _ = print!(
+            "{}: session '{}' is already running. Attach? [Y/n] ",
+            self.progname, name,
+        );
+        let _ = std::io::stdout().flush();
+        let mut input = String::new();
+        if std::io::stdin().read_line(&mut input).is_ok() {
+            let input = input.trim().to_lowercase();
+            if input.is_empty() || input == "y" || input == "yes" {
+                return Some(self.attach(false));
+            }
+        }
+        Some(1)
+    }
+
     /// Create a new session: fork the master daemon, then attach.
     pub fn cmd_new(&mut self, session: &str, command: &[String]) -> i32 {
         self.sockname = expand_sockname(&self.progname, session);
         let cmd = use_shell_if_no_cmd(command);
         with_tty(self, |c| {
+            if let Some(ec) = c.prompt_attach_if_running() {
+                return ec;
+            }
             if session_daemon_main(c, &cmd, true, false) != 0 {
                 return 1;
             }
@@ -991,6 +1026,9 @@ impl Session {
         self.sockname = expand_sockname(&self.progname, session);
         let cmd = use_shell_if_no_cmd(command);
         with_tty(self, |c| {
+            if let Some(ec) = c.prompt_attach_if_running() {
+                return ec;
+            }
             if session_daemon_main(c, &cmd, false, false) != 0 {
                 return 1;
             }
@@ -1006,7 +1044,12 @@ impl Session {
     pub fn cmd_run(&mut self, session: &str, command: &[String]) -> i32 {
         self.sockname = expand_sockname(&self.progname, session);
         let cmd = use_shell_if_no_cmd(command);
-        with_tty(self, |c| session_daemon_main(c, &cmd, false, true))
+        with_tty(self, |c| {
+            if let Some(ec) = c.prompt_attach_if_running() {
+                return ec;
+            }
+            session_daemon_main(c, &cmd, false, true)
+        })
     }
 
     /// Attach to, or create on ECONNREFUSED/ENOENT, a session.
